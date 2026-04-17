@@ -1,5 +1,6 @@
 """Tests for tools/resume.py."""
 
+import resume as resume_tool
 from memory.hunt_journal import HuntJournal
 from memory.pattern_db import PatternDB
 from memory.schemas import make_journal_entry, make_pattern_entry
@@ -96,6 +97,30 @@ class TestResumeSummary:
     def test_missing_profile_returns_none(self, tmp_hunt_dir):
         assert load_resume_summary(tmp_hunt_dir, "missing.com") is None
 
+    def test_includes_repo_source_summary(self, tmp_hunt_dir, sample_target_profile, monkeypatch, tmp_path):
+        save_target_profile(tmp_hunt_dir, sample_target_profile)
+
+        repo_root = tmp_path
+        exposure_dir = repo_root / "findings" / "target.com" / "exposure"
+        exposure_dir.mkdir(parents=True)
+        (exposure_dir / "repo_source_meta.json").write_text(
+            '{"status":"ok","source_kind":"local_path","clone_performed":false}\n',
+            encoding="utf-8",
+        )
+        (exposure_dir / "repo_summary.md").write_text(
+            "# Repository Source Hunt Summary\n\n- Secret findings: 2\n- CI findings: 1\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(resume_tool, "BASE_DIR", str(repo_root))
+
+        summary = load_resume_summary(tmp_hunt_dir, "target.com")
+
+        assert summary is not None
+        assert summary["repo_source_summary"]["source_kind"] == "local_path"
+        assert summary["repo_source_summary"]["secret_findings"] == 2
+        assert summary["repo_source_summary"]["ci_findings"] == 1
+        assert summary["repo_source_summary"]["summary_hint"] == "local_path, secrets=2, ci=1"
+
 
 class TestResumeFormatting:
 
@@ -165,3 +190,32 @@ class TestResumeFormatting:
         output = format_resume_output(summary, "target.com")
         assert "Recent Guard Blocks:" in output
         assert "block_breaker" in output
+
+    def test_formats_repo_source_summary(self):
+        summary = {
+            "target": "target.com",
+            "sessions": 3,
+            "last_hunted": "2026-03-24T21:00:00Z",
+            "total_time_minutes": 125,
+            "tech_stack": ["next.js", "graphql"],
+            "tested_endpoints": ["/a"],
+            "untested_endpoints": ["/b", "/c"],
+            "findings": [],
+            "finding_titles": [],
+            "journal_entries": 4,
+            "confirmed_findings": 0,
+            "confirmed_payout": 0,
+            "pattern_matches": [],
+            "matched_targets": 0,
+            "latest_session_summary": None,
+            "recent_guard_blocks": [],
+            "repo_source_summary": {
+                "summary_hint": "local_path, secrets=2, ci=1",
+                "source_kind": "local_path",
+                "secret_findings": 2,
+                "ci_findings": 1,
+            },
+        }
+        output = format_resume_output(summary, "target.com")
+        assert "Repo Source:" in output
+        assert "local_path, secrets=2, ci=1" in output

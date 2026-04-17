@@ -26,7 +26,7 @@ import ssl
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urljoin, urlparse
 from urllib.request import Request, urlopen
@@ -547,10 +547,11 @@ def _load_report_findings(domain):
 def _update_target_profile(domain, *, elapsed_minutes=0, recon_completed=False):
     """Persist minimal hunt state so resume/intel can read it later."""
     profile = load_target_profile(HUNT_MEMORY_DIR, domain)
+    now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     if profile is None:
         profile = make_target_profile(
             domain,
-            scope_snapshot={"in_scope": [domain], "fetched_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")},
+            scope_snapshot={"in_scope": [domain], "fetched_at": now_utc},
             tested_endpoints=[],
             untested_endpoints=[],
             findings=[],
@@ -558,7 +559,7 @@ def _update_target_profile(domain, *, elapsed_minutes=0, recon_completed=False):
             total_time_minutes=0,
         )
 
-    profile["last_hunted"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    profile["last_hunted"] = now_utc
     profile["hunt_sessions"] = int(profile.get("hunt_sessions", 0)) + 1
     profile["total_time_minutes"] = round(float(profile.get("total_time_minutes", 0)) + elapsed_minutes, 2)
 

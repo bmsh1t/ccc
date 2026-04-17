@@ -26,6 +26,60 @@ _SESSION_SUMMARY_RE = re.compile(
 )
 
 
+def _load_repo_source_summary(base_dir: str | Path, target: str) -> dict:
+    """Load a compact repo-source summary from exposure artifacts when present."""
+    exposure_dir = Path(base_dir) / "findings" / target / "exposure"
+    meta_path = exposure_dir / "repo_source_meta.json"
+    summary_path = exposure_dir / "repo_summary.md"
+
+    summary: dict[str, object] = {}
+
+    if meta_path.exists():
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            if isinstance(meta, dict):
+                summary["status"] = str(meta.get("status", "") or "")
+                summary["source_kind"] = str(meta.get("source_kind", "") or "")
+                summary["clone_performed"] = bool(meta.get("clone_performed", False))
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    summary_text = ""
+    if summary_path.exists():
+        try:
+            summary_text = summary_path.read_text(encoding="utf-8")
+        except OSError:
+            summary_text = ""
+
+    if summary_text:
+        secret_match = re.search(r"^- Secret findings:\s*(\d+)\s*$", summary_text, re.M)
+        ci_match = re.search(r"^- CI findings:\s*(\d+)\s*$", summary_text, re.M)
+        confirmation_required = "confirmation required before clone" in summary_text.lower()
+
+        if secret_match:
+            summary["secret_findings"] = int(secret_match.group(1))
+        if ci_match:
+            summary["ci_findings"] = int(ci_match.group(1))
+        if confirmation_required and not summary.get("status"):
+            summary["status"] = "confirmation_required"
+
+    status = str(summary.get("status", "") or "").strip()
+    source_kind = str(summary.get("source_kind", "") or "").strip()
+    secret_findings = int(summary.get("secret_findings", 0) or 0)
+    ci_findings = int(summary.get("ci_findings", 0) or 0)
+
+    summary_hint = ""
+    if status == "confirmation_required":
+        summary_hint = "confirmation required before clone"
+    elif source_kind:
+        summary_hint = f"{source_kind}, secrets={secret_findings}, ci={ci_findings}"
+
+    if summary_hint:
+        summary["summary_hint"] = summary_hint
+
+    return summary
+
+
 def format_minutes(total_minutes: int | float) -> str:
     minutes = int(round(float(total_minutes or 0)))
     hours, mins = divmod(minutes, 60)
@@ -160,6 +214,7 @@ def load_resume_summary(memory_dir: str | Path, target: str) -> dict | None:
         "matched_targets": len({item["target"] for item in pattern_matches}),
         "latest_session_summary": latest_session,
         "recent_guard_blocks": recent_guard_blocks(entries),
+        "repo_source_summary": _load_repo_source_summary(BASE_DIR, target),
     }
 
 
@@ -222,6 +277,12 @@ def format_resume_output(summary: dict | None, target: str) -> str:
         for item in guard_blocks[:3]:
             details = item.get("notes", "") or item.get("endpoint", "")
             lines.append(f"  - {details}")
+
+    repo_source_summary = summary.get("repo_source_summary") or {}
+    repo_source_hint = str(repo_source_summary.get("summary_hint", "") or "").strip()
+    if repo_source_hint:
+        lines.append("")
+        lines.append(f"Repo Source: {repo_source_hint}")
 
     lines.append("")
     lines.append("Untested Surface:")
