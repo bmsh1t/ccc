@@ -181,5 +181,5 @@ Requests:   142 total (142 in-scope, 0 blocked)
 Endpoints:  23 tested, 14 remaining
 Findings:   2 validated, 1 killed, 3 partial
 
-Next:       14 untested endpoints — run /resume target.com to continue
+Next:       14 untested endpoints — run /pickup target.com to continue
 ```
