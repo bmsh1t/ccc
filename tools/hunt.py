@@ -5,15 +5,15 @@ Main script that chains target selection, recon, scanning, and reporting.
 
 Usage:
     python3 hunt.py                         # Full pipeline: select targets + hunt
-    python3 hunt.py --target <domain>       # Hunt a specific target
-    python3 hunt.py --quick --target <domain>  # Quick scan mode
-    python3 hunt.py --target <domain> --agent  # Autonomous agent mode
-    python3 hunt.py --recon-only --target <domain>  # Only run recon
-    python3 hunt.py --scan-only --target <domain>   # Only run vuln scanner (requires prior recon)
+    python3 hunt.py --target <target>       # Hunt a specific target
+    python3 hunt.py --quick --target <target>  # Quick scan mode
+    python3 hunt.py --target <target> --agent  # Autonomous agent mode
+    python3 hunt.py --recon-only --target <target>  # Only run recon
+    python3 hunt.py --scan-only --target <target>   # Only run vuln scanner (requires prior recon)
     python3 hunt.py --status                # Show current progress
     python3 hunt.py --setup-wordlists       # Download common wordlists
-    python3 hunt.py --cve-hunt --target <domain>   # Run CVE hunter
-    python3 hunt.py --zero-day --target <domain>   # Run zero-day fuzzer
+    python3 hunt.py --cve-hunt --target <target>   # Run CVE hunter
+    python3 hunt.py --zero-day --target <target>   # Run zero-day fuzzer
 """
 
 import argparse
@@ -21,6 +21,7 @@ import base64
 import json
 import os
 import re
+import ipaddress
 import shlex
 import ssl
 import subprocess
@@ -109,6 +110,33 @@ def run_cmd(cmd, cwd=None, timeout=600):
         return False, "Command timed out"
     except Exception as e:
         return False, str(e)
+
+
+def classify_target(target):
+    """Classify a hunt target as domain, IP, or CIDR and normalize it."""
+    value = (target or "").strip()
+    if not value:
+        return {"kind": "domain", "target": value}
+
+    try:
+        network = ipaddress.ip_network(value, strict=False)
+    except ValueError:
+        network = None
+    else:
+        if "/" in value:
+            return {"kind": "cidr", "target": str(network)}
+
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError:
+        address = None
+    else:
+        return {"kind": "ip", "target": str(address)}
+
+    if re.fullmatch(r"[0-9./:]+", value):
+        raise ValueError("invalid IP/CIDR target")
+
+    return {"kind": "domain", "target": value}
 
 
 def _resolve_recon_dir(domain):
@@ -713,22 +741,24 @@ def select_targets(top_n=10):
 
 
 def run_recon(domain, quick=False):
-    """Run recon engine on a domain."""
-    log("info", f"Running recon on {domain}...")
+    """Run recon engine on a classified target."""
+    target_info = classify_target(domain)
+    normalized_target = target_info["target"]
+    log("info", f"Running recon on {normalized_target}...")
     script = os.path.join(TOOLS_DIR, "recon_engine.sh")
     quick_flag = "--quick" if quick else ""
 
     # Run with live output
     try:
         proc = subprocess.Popen(
-            f'bash "{script}" "{domain}" {quick_flag}',
+            f'bash "{script}" "{normalized_target}" {quick_flag}',
             shell=True, cwd=BASE_DIR
         )
         proc.wait(timeout=1800)  # 30 min timeout
         return proc.returncode == 0
     except subprocess.TimeoutExpired:
         proc.kill()
-        log("err", f"Recon timed out for {domain}")
+        log("err", f"Recon timed out for {normalized_target}")
         return False
 
 
@@ -1382,14 +1412,14 @@ def main():
         epilog="""
 Examples:
   python3 hunt.py                            Full pipeline (select + hunt)
-  python3 hunt.py --target example.com       Hunt specific target
-  python3 hunt.py --quick --target example.com  Quick scan
-  python3 hunt.py --target example.com --agent   Autonomous agent mode
+  python3 hunt.py --target example.com       Hunt specific domain/IP/CIDR target
+  python3 hunt.py --quick --target 1.2.3.4   Quick scan for a specific target
+  python3 hunt.py --target 10.0.0.0/24 --agent   Autonomous agent mode
   python3 hunt.py --status                   Show progress
   python3 hunt.py --setup-wordlists          Download wordlists
         """
     )
-    parser.add_argument("--target", type=str, help="Specific target domain to hunt")
+    parser.add_argument("--target", type=str, help="Specific target (domain, IP, or CIDR) to hunt")
     parser.add_argument("--quick", action="store_true", help="Quick scan mode (fewer checks)")
     parser.add_argument("--recon-only", action="store_true", help="Only run reconnaissance")
     parser.add_argument("--scan-only", action="store_true", help="Only run vulnerability scanner")
