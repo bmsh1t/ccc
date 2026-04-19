@@ -16,15 +16,15 @@ import re
 import sys
 from datetime import datetime
 
-from runtime_exec import run_shell_command
+from runtime_exec import run_shell_command_split
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FINDINGS_DIR = os.path.join(BASE_DIR, "findings")
 
 
 def run_cmd(cmd, timeout=30):
-    success, output = run_shell_command(cmd, timeout=timeout)
-    return success, output.strip()
+    success, stdout, _stderr = run_shell_command_split(cmd, timeout=timeout)
+    return success, stdout.strip()
 
 
 def detect_technologies(domain, recon_dir=None):

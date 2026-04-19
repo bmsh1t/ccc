@@ -240,20 +240,25 @@ def test_trim_replayed_prefix_only_strips_confirmed_duplicate_prefix():
     assert runtime_exec._trim_replayed_prefix("same", "same") == ""
 
 
-def test_cve_hunter_run_cmd_delegates_to_shared_helper(monkeypatch):
+def test_cve_hunter_run_cmd_returns_stdout_only_from_shared_helper(monkeypatch):
     captured = {}
 
-    def fake_run_shell_command(cmd, *, cwd=None, timeout=600):
+    def fake_run_shell_command_split(cmd, *, cwd=None, timeout=600):
         captured["cmd"] = cmd
         captured["cwd"] = cwd
         captured["timeout"] = timeout
-        return True, "shared output\n"
+        return True, "stdout only\n", "stderr noise\n"
 
-    monkeypatch.setattr(cve_hunter, "run_shell_command", fake_run_shell_command, raising=False)
+    monkeypatch.setattr(
+        cve_hunter,
+        "run_shell_command_split",
+        fake_run_shell_command_split,
+        raising=False,
+    )
 
     success, output = cve_hunter.run_cmd("echo ok", timeout=12)
 
-    assert (success, output) == (True, "shared output")
+    assert (success, output) == (True, "stdout only")
     assert captured == {"cmd": "echo ok", "cwd": None, "timeout": 12}
 
 
@@ -277,3 +282,25 @@ def test_zero_day_fuzzer_run_cmd_delegates_to_split_shared_helper(monkeypatch):
 
     assert (success, stdout, stderr) == (False, "out", "err")
     assert captured == {"cmd": "echo nope", "cwd": None, "timeout": 9}
+
+
+def test_zero_day_fuzzer_run_cmd_preserves_legacy_timeout_contract(monkeypatch):
+    captured = {}
+
+    def fake_run_shell_command_split(cmd, *, cwd=None, timeout=600):
+        captured["cmd"] = cmd
+        captured["cwd"] = cwd
+        captured["timeout"] = timeout
+        return False, "partial out\n", "partial err\nCommand timed out after 9s"
+
+    monkeypatch.setattr(
+        zero_day_fuzzer,
+        "run_shell_command_split",
+        fake_run_shell_command_split,
+        raising=False,
+    )
+
+    success, stdout, stderr = zero_day_fuzzer.run_cmd("sleep 9", timeout=9)
+
+    assert (success, stdout, stderr) == (False, "", "timeout")
+    assert captured == {"cmd": "sleep 9", "cwd": None, "timeout": 9}

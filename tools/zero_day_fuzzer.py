@@ -35,7 +35,10 @@ FINDINGS_DIR = os.path.join(BASE_DIR, "findings")
 
 
 def run_cmd(cmd, timeout=15):
-    return run_shell_command_split(cmd, timeout=timeout)
+    success, stdout, stderr = run_shell_command_split(cmd, timeout=timeout)
+    if not success and "Command timed out after" in stderr:
+        return False, "", "timeout"
+    return success, stdout, stderr
 
 
 def curl_request(url, method="GET", headers=None, data=None, timeout=10):
