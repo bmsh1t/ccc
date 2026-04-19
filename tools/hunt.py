@@ -139,14 +139,31 @@ def classify_target(target):
     return {"kind": "domain", "target": value}
 
 
+def _target_storage_key(target):
+    """Return the on-disk storage key for a target."""
+    target_info = classify_target(target)
+    normalized_target = target_info["target"]
+    if target_info["kind"] == "cidr":
+        return normalized_target.replace("/", "_")
+    return normalized_target
+
+
 def _resolve_recon_dir(domain):
     """Return the canonical recon directory for a target."""
-    return os.path.join(RECON_DIR, domain)
+    return os.path.join(RECON_DIR, _target_storage_key(domain))
 
 
 def _resolve_findings_dir(domain, create=False):
     """Return the canonical findings directory for a target."""
-    path = os.path.join(FINDINGS_DIR, domain)
+    path = os.path.join(FINDINGS_DIR, _target_storage_key(domain))
+    if create:
+        os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _resolve_reports_dir(domain, create=False):
+    """Return the canonical reports directory for a target."""
+    path = os.path.join(REPORTS_DIR, _target_storage_key(domain))
     if create:
         os.makedirs(path, exist_ok=True)
     return path
@@ -550,7 +567,7 @@ def _extract_recon_tech_stack(domain, limit=12):
 
 def _load_report_findings(domain):
     """Load simplified findings from reports/<target>/INDEX.json if present."""
-    index_path = os.path.join(REPORTS_DIR, domain, "INDEX.json")
+    index_path = os.path.join(_resolve_reports_dir(domain), "INDEX.json")
     if not os.path.isfile(index_path):
         return []
 
@@ -1203,7 +1220,7 @@ def run_jwt_audit(domain):
 
 def generate_reports(domain):
     """Generate reports for findings."""
-    findings_dir = os.path.join(FINDINGS_DIR, domain)
+    findings_dir = _resolve_findings_dir(domain)
     if not os.path.isdir(findings_dir):
         log("warn", f"No findings for {domain}")
         return 0
@@ -1214,7 +1231,7 @@ def generate_reports(domain):
     print(output)
 
     # Count generated reports
-    report_dir = os.path.join(REPORTS_DIR, domain)
+    report_dir = _resolve_reports_dir(domain)
     if os.path.isdir(report_dir):
         return len([f for f in os.listdir(report_dir) if f.endswith(".md") and f != "SUMMARY.md"])
     return 0
@@ -1315,7 +1332,7 @@ def run_cve_hunt(domain):
     """Run CVE hunter on a target."""
     log("info", f"Running CVE hunter on {domain}...")
     script = os.path.join(TOOLS_DIR, "cve_hunter.py")
-    recon_dir = os.path.join(RECON_DIR, domain)
+    recon_dir = _resolve_recon_dir(domain)
     recon_flag = f'--recon-dir "{recon_dir}"' if os.path.isdir(recon_dir) else ""
 
     try:
@@ -1338,7 +1355,7 @@ def run_zero_day_fuzzer(domain, deep=False):
     deep_flag = "--deep" if deep else ""
 
     # Check if we have recon data with live URLs
-    recon_dir = os.path.join(RECON_DIR, domain)
+    recon_dir = _resolve_recon_dir(domain)
     if os.path.isdir(recon_dir):
         cmd = f'python3 "{script}" "https://{domain}" --recon-dir "{recon_dir}" {deep_flag}'
     else:

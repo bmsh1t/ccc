@@ -78,3 +78,65 @@ def test_hunt_target_uses_canonical_cidr_across_followup_paths(monkeypatch):
         "summary": ["1.2.3.0/24"],
         "reports": ["1.2.3.0/24"],
     }
+
+
+def test_run_vuln_scan_uses_cidr_storage_dir(monkeypatch, tmp_path):
+    recon_root = tmp_path / "recon"
+    findings_root = tmp_path / "findings"
+    reports_root = tmp_path / "reports"
+    stored_recon_dir = recon_root / "1.2.3.0_24"
+    stored_recon_dir.mkdir(parents=True)
+
+    monkeypatch.setattr(hunt, "RECON_DIR", str(recon_root))
+    monkeypatch.setattr(hunt, "FINDINGS_DIR", str(findings_root))
+    monkeypatch.setattr(hunt, "REPORTS_DIR", str(reports_root))
+
+    captured = {}
+
+    class FakeProc:
+        returncode = 0
+
+        def wait(self, timeout=None):
+            captured["timeout"] = timeout
+            return 0
+
+    def fake_popen(cmd, shell, cwd):
+        captured["cmd"] = cmd
+        captured["shell"] = shell
+        captured["cwd"] = cwd
+        return FakeProc()
+
+    monkeypatch.setattr(hunt.subprocess, "Popen", fake_popen)
+
+    assert hunt.run_vuln_scan("1.2.3.0/24") is True
+    assert str(stored_recon_dir) in captured["cmd"]
+    assert "1.2.3.0/24" not in captured["cmd"]
+    assert captured["cwd"] == hunt.BASE_DIR
+    assert captured["timeout"] == 1800
+
+
+def test_generate_reports_uses_cidr_storage_dirs(monkeypatch, tmp_path):
+    findings_root = tmp_path / "findings"
+    reports_root = tmp_path / "reports"
+    stored_findings_dir = findings_root / "1.2.3.0_24"
+    stored_report_dir = reports_root / "1.2.3.0_24"
+    stored_findings_dir.mkdir(parents=True)
+    stored_report_dir.mkdir(parents=True)
+    (stored_report_dir / "test.md").write_text("ok", encoding="utf-8")
+
+    monkeypatch.setattr(hunt, "FINDINGS_DIR", str(findings_root))
+    monkeypatch.setattr(hunt, "REPORTS_DIR", str(reports_root))
+
+    captured = {}
+
+    def fake_run_cmd(cmd, cwd=None, timeout=600):
+        captured["cmd"] = cmd
+        captured["cwd"] = cwd
+        captured["timeout"] = timeout
+        return True, "generated"
+
+    monkeypatch.setattr(hunt, "run_cmd", fake_run_cmd)
+
+    assert hunt.generate_reports("1.2.3.0/24") == 1
+    assert str(stored_findings_dir) in captured["cmd"]
+    assert "1.2.3.0/24" not in captured["cmd"]
