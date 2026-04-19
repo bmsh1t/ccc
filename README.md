@@ -283,7 +283,7 @@ Wraps `learn.py` + HackerOne MCP + hunt memory:
 `scope_checker.py` uses anchored suffix matching — code check, not LLM judgment:
 - `*.target.com` matches `api.target.com` but NOT `evil-target.com`
 - Excluded domains always win over wildcards
-- IP addresses rejected with warning (match by domain only)
+- Exact IPs and CIDR ranges match in scope when explicitly allowed
 - Every test filtered through scope before execution
 
 </details>
