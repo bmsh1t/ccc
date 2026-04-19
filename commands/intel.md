@@ -4,7 +4,7 @@ description: On-demand intelligence fetch for a target — CVEs, disclosed repor
 
 # /intel
 
-Fetch actionable intelligence for a target.
+Fetch actionable intelligence for a target. This is the preferred primary intel workflow; legacy CVE-hunt entrypoints are compatibility paths only.
 
 ## What This Does
 

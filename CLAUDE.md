@@ -38,6 +38,7 @@ This repo is a Claude Code plugin for professional bug bounty hunting across Hac
 | `/intel` | `/intel target.com` — fetch CVE + disclosure intel |
 | `/token-scan` | `/token-scan <contract>` — meme coin/token rug pull scanner |
 
+> Legacy script paths remain available for compatibility, but `/intel` and `/report` are the primary workflows.
 
 > `/resume` is a reserved Claude Code command — use `/pickup` to continue a previous hunt.
 
@@ -62,9 +63,9 @@ This repo is a Claude Code plugin for professional bug bounty hunting across Hac
 - `tools/hunt.py` — master orchestrator
 - `tools/recon_engine.sh` — subdomain + URL discovery
 - `tools/validate.py` — 4-gate finding validator
-- `tools/report_generator.py` — report writer
-- `tools/learn.py` — CVE + disclosure intel
-- `tools/intel_engine.py` — on-demand intel with memory context
+- `tools/report_generator.py` — legacy report-generation compatibility backend behind the `/report` workflow
+- `tools/learn.py` — CVE + disclosure compatibility backend used by `/intel`
+- `tools/intel_engine.py` — primary `/intel` workflow with hunt memory context
 - `tools/scope_checker.py` — deterministic scope safety checker
 - `tools/cicd_scanner.sh` — GitHub Actions workflow scanner (sisakulint wrapper, remote scan)
 - `tools/token_scanner.py` — automated token red flag scanner (EVM + Solana)

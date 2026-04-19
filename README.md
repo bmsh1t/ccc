@@ -103,6 +103,8 @@ claude                          # Start Claude Code from this repo root
 /report                         # Generate submission-ready report
 ```
 
+> Legacy CVE/report paths remain available as compatibility paths, but prefer `/intel` and `/report` as the primary workflows.
+
 **Step 3 — Go Autonomous** *(new in v3)*
 
 ```bash

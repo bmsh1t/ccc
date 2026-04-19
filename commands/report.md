@@ -4,7 +4,7 @@ description: Write a submission-ready bug bounty report. Generates H1/Bugcrowd/I
 
 # /report
 
-Generate a submission-ready bug bounty report.
+Generate a submission-ready bug bounty report. This is the preferred primary reporting workflow; legacy report-generation entrypoints are compatibility paths only.
 
 ## Pre-Conditions
 
