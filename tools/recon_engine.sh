@@ -21,6 +21,28 @@ log_step()  { echo -e "    ${CYAN}[>]${NC} $1"; }
 log_done()  { echo -e "    ${GREEN}[✓]${NC} $1"; }
 log_vuln()  { echo -e "${RED}[VULN]${NC} $1"; }
 
+timeout_bin() {
+    if command -v timeout >/dev/null 2>&1; then
+        printf '%s\n' timeout
+    elif command -v gtimeout >/dev/null 2>&1; then
+        printf '%s\n' gtimeout
+    else
+        printf '%s\n' ""
+    fi
+}
+
+run_with_timeout() {
+    local limit="$1"
+    shift
+    local timeout_cmd
+    timeout_cmd="$(timeout_bin)"
+    if [ -n "$timeout_cmd" ]; then
+        "$timeout_cmd" "$limit" "$@"
+    else
+        "$@"
+    fi
+}
+
 TARGET="${1:?Usage: $0 <target-domain> [--quick]}"
 QUICK_MODE="${2:-}"
 BASE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -79,7 +101,7 @@ if [ "$TARGET_KIND" = "domain" ]; then
     # Amass (passive)
     if command -v amass &>/dev/null && [ "$QUICK_MODE" != "--quick" ]; then
         log_step "Running amass (passive, 5min timeout)..."
-        timeout 300 amass enum -passive -d "$TARGET" -o "$RECON_DIR/subdomains/amass.txt" 2>/dev/null || true
+        run_with_timeout 300 amass enum -passive -d "$TARGET" -o "$RECON_DIR/subdomains/amass.txt" 2>/dev/null || true
         # Ensure amass output file exists even if amass failed
         [ ! -f "$RECON_DIR/subdomains/amass.txt" ] && touch "$RECON_DIR/subdomains/amass.txt"
         log_done "amass: $(wc -l < "$RECON_DIR/subdomains/amass.txt" 2>/dev/null || echo 0) subdomains"

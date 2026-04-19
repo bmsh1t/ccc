@@ -21,6 +21,28 @@ log_step()  { echo -e "    ${CYAN}[>]${NC} $1"; }
 log_done()  { echo -e "    ${GREEN}[✓]${NC} $1"; }
 log_vuln()  { echo -e "    ${RED}[VULN]${NC} $1"; }
 
+timeout_bin() {
+    if command -v timeout >/dev/null 2>&1; then
+        printf '%s\n' timeout
+    elif command -v gtimeout >/dev/null 2>&1; then
+        printf '%s\n' gtimeout
+    else
+        printf '%s\n' ""
+    fi
+}
+
+run_with_timeout() {
+    local limit="$1"
+    shift
+    local timeout_cmd
+    timeout_cmd="$(timeout_bin)"
+    if [ -n "$timeout_cmd" ]; then
+        "$timeout_cmd" "$limit" "$@"
+    else
+        "$@"
+    fi
+}
+
 RECON_DIR="${1:?Usage: $0 <recon_dir> [--quick]}"
 QUICK_MODE="${2:-}"
 
@@ -83,7 +105,7 @@ log_info "Check 1: XSS Detection"
 if command -v dalfox &>/dev/null && [ -s "$PARAM_URLS" ]; then
     log_step "Running dalfox on parameterized URLs..."
     # Feed URLs with params to dalfox
-    head -100 "$PARAM_URLS" | dalfox pipe \
+    head -100 "$PARAM_URLS" | run_with_timeout 900 dalfox pipe \
         --silence \
         --no-color \
         --worker 5 \

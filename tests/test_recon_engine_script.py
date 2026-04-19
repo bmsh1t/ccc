@@ -19,3 +19,13 @@ def test_recon_engine_guards_common_set_e_pitfalls():
     assert "if count >= limit:" in text
     assert 'if [ "$TARGET_KIND" = "domain" ]; then' in text
     assert '-iL "$DISCOVERY_HOSTS_FILE"' in text
+
+
+def test_recon_engine_has_timeout_compat_helper():
+    script = Path(__file__).resolve().parent.parent / "tools" / "recon_engine.sh"
+    text = script.read_text(encoding="utf-8")
+
+    assert "timeout_bin()" in text
+    assert "gtimeout" in text
+    assert "run_with_timeout()" in text
+    assert "run_with_timeout 300 amass enum -passive" in text
