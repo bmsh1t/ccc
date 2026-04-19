@@ -89,6 +89,11 @@ def test_bridge_backed_hunt_agent_imports_hunt_journal_via_memory_package(monkey
 def test_agent_system_mentions_intel_and_report_as_primary_workflows():
     system = agent._build_agent_system(ctf_mode=False, autopilot_mode="normal")
 
+    assert "run_intel" in system
     assert "/intel" in system
+    assert "primary /report reporting workflow" in system
+    assert "generate_reports before finish" in system
+    assert "findings or useful artifacts exist" in system
+    assert "generate_reports" in system
     assert "/report" in system
     assert "compatibility" in system.lower()
