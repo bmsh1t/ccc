@@ -387,7 +387,12 @@ CVSS4_LEVELS = {
 
 
 def _cvss4_round(score: float) -> float:
-    return max(0.0, min(10.0, int((score * 10) + 0.5) / 10))
+    # Align with FIRST / Red Hat official helper:
+    # roundToDecimalPlaces(Math.max(0, Math.min(10, value)), 1)
+    # using EPSILON = 10^-6 to compensate floating-point representation drift.
+    clamped = max(0.0, min(10.0, score))
+    epsilon = 10 ** -6
+    return int((clamped + epsilon) * 10 + 0.5) / 10
 
 
 def _cvss4_metric(metrics: dict[str, str], metric: str) -> str | None:

@@ -68,6 +68,25 @@ def test_calculate_cvss4_matches_first_official_examples(params, expected_score,
     assert vector == expected_vector
 
 
+def test_calculate_cvss4_rounds_boundary_case_with_official_epsilon():
+    score, vector = validate.calculate_cvss4(
+        av="N",
+        ac="L",
+        at="N",
+        pr="N",
+        ui="P",
+        vc="H",
+        vi="L",
+        va="N",
+        sc="H",
+        si="H",
+        sa="H",
+    )
+
+    assert score == 8.6
+    assert vector == "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:H/VI:L/VA:N/SC:H/SI:H/SA:H"
+
+
 def test_severity_from_score_cvss4_thresholds():
     assert validate.severity_from_score(0.0) == "NONE"
     assert validate.severity_from_score(0.1) == "LOW"
