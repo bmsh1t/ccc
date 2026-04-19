@@ -14,7 +14,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from memory.hunt_journal import HuntJournal
+from legacy_bridge import open_hunt_journal
 from memory.pattern_db import PatternDB
 from memory.target_profile import default_memory_dir, load_target_profile
 
@@ -162,7 +162,7 @@ def load_resume_summary(memory_dir: str | Path, target: str) -> dict | None:
     if profile is None:
         return None
 
-    journal = HuntJournal(memory_dir / "journal.jsonl")
+    journal = open_hunt_journal(memory_dir)
     entries = journal.query(target=target)
     confirmed_entries = [entry for entry in entries if entry.get("result") == "confirmed"]
     confirmed_payout = round(sum(float(entry.get("payout", 0) or 0) for entry in confirmed_entries), 2)

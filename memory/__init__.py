@@ -11,6 +11,7 @@ from memory.schemas import (
     validate_pattern_entry,
     validate_audit_entry,
 )
+# 迁移期兼容 re-export：保留 `from memory import HuntJournal` 稳定入口。
 from memory.hunt_journal import HuntJournal
 from memory.pattern_db import PatternDB
 from memory.audit_log import AuditLog, RateLimiter, CircuitBreaker

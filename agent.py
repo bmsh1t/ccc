@@ -49,7 +49,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from memory.hunt_journal import HuntJournal
+from memory import HuntJournal
 from memory.target_profile import default_memory_dir, load_target_profile
 
 # ── LangGraph optional import ──────────────────────────────────────────────────
@@ -203,6 +203,18 @@ def _h():
         spec.loader.exec_module(module)
         _hunt = _HuntCompat(module)
     return _hunt
+
+
+def _open_hunt_journal(memory_dir: str | Path):
+    """Resolve the legacy bridge journal opener without depending on _h() mocks."""
+    try:
+        from legacy_bridge import open_hunt_journal
+    except ModuleNotFoundError:
+        tools_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools")
+        if tools_dir not in sys.path:
+            sys.path.insert(0, tools_dir)
+        from legacy_bridge import open_hunt_journal
+    return open_hunt_journal(memory_dir)
 
 
 def _load_agent_runtime_config() -> dict[str, Any]:
@@ -2473,7 +2485,7 @@ def _auto_log_agent_session_summary(domain: str, memory: HuntMemory, session_id:
                 + _session_summary_vuln_classes_from_profile(profile)
             )
         )
-        journal = HuntJournal(Path(memory_dir) / "journal.jsonl")
+        journal = _open_hunt_journal(memory_dir)
         journal.log_session_summary(
             target=domain,
             action="hunt",

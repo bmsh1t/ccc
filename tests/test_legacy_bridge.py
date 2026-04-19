@@ -14,6 +14,12 @@ def test_open_hunt_journal_returns_journal_jsonl_path(tmp_path):
     assert journal.path == Path(tmp_path) / "journal.jsonl"
 
 
+def test_hunt_journal_stable_reexport_from_memory_package():
+    from memory import HuntJournal
+
+    assert HuntJournal is legacy_bridge.HuntJournal
+
+
 def test_run_legacy_cve_hunt_delegates_to_cve_hunter_and_passes_domain(monkeypatch, tmp_path):
     captured = {}
     recon_dir = str(tmp_path / "recon data" / "example$(touch marker).com")
