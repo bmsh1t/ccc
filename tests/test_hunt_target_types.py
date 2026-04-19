@@ -174,14 +174,15 @@ def test_generate_reports_uses_cidr_storage_dirs(monkeypatch, tmp_path):
 
     captured = {}
 
-    def fake_run_cmd(cmd, cwd=None, timeout=600):
-        captured["cmd"] = cmd
-        captured["cwd"] = cwd
+    def fake_generate_legacy_reports(findings_dir, *, base_dir, timeout=600):
+        captured["findings_dir"] = findings_dir
+        captured["base_dir"] = base_dir
         captured["timeout"] = timeout
         return True, "generated"
 
-    monkeypatch.setattr(hunt, "run_cmd", fake_run_cmd)
+    monkeypatch.setattr(hunt, "generate_legacy_reports", fake_generate_legacy_reports)
 
     assert hunt.generate_reports("1.2.3.0/24") == 1
-    assert str(stored_findings_dir) in captured["cmd"]
-    assert "1.2.3.0/24" not in captured["cmd"]
+    assert captured["findings_dir"] == str(stored_findings_dir)
+    assert captured["base_dir"] == hunt.BASE_DIR
+    assert captured["timeout"] == 600

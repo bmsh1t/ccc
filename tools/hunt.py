@@ -46,9 +46,9 @@ if BASE_DIR not in sys.path:
 if TOOLS_DIR not in sys.path:
     sys.path.insert(0, TOOLS_DIR)
 
-from memory.hunt_journal import HuntJournal
 from memory.schemas import make_journal_entry
 from memory.target_profile import default_memory_dir, load_target_profile, make_target_profile, save_target_profile
+from legacy_bridge import generate_legacy_reports, open_hunt_journal, run_legacy_cve_hunt
 
 # Colors
 GREEN = "\033[0;32m"
@@ -396,7 +396,7 @@ def _log_guard_block(
     _SEEN_GUARD_BLOCKS.add(signature)
 
     try:
-        journal = HuntJournal(os.path.join(HUNT_MEMORY_DIR, "journal.jsonl"))
+        journal = open_hunt_journal(HUNT_MEMORY_DIR)
         entry = make_journal_entry(
             target=normalized_target,
             action="recon" if is_recon else "hunt",
@@ -701,7 +701,7 @@ def _auto_log_session_summary(
             cve_hunt=cve_hunt,
             zero_day=zero_day,
         )
-        journal = HuntJournal(os.path.join(HUNT_MEMORY_DIR, "journal.jsonl"))
+        journal = open_hunt_journal(HUNT_MEMORY_DIR)
         journal.log_session_summary(
             target=domain,
             action=action,
@@ -1251,8 +1251,7 @@ def generate_reports(domain):
         return 0
 
     log("info", f"Generating reports for {domain}...")
-    script = os.path.join(TOOLS_DIR, "report_generator.py")
-    success, output = run_cmd(f'python3 "{script}" "{findings_dir}"')
+    success, output = generate_legacy_reports(findings_dir, base_dir=BASE_DIR)
     print(output)
 
     # Count generated reports
@@ -1356,21 +1355,14 @@ def print_dashboard(results):
 def run_cve_hunt(domain):
     """Run CVE hunter on a target."""
     log("info", f"Running CVE hunter on {domain}...")
-    script = os.path.join(TOOLS_DIR, "cve_hunter.py")
     recon_dir = _resolve_recon_dir(domain)
-    recon_flag = f'--recon-dir "{recon_dir}"' if os.path.isdir(recon_dir) else ""
-
-    try:
-        proc = subprocess.Popen(
-            f'python3 "{script}" "{domain}" {recon_flag}',
-            shell=True, cwd=BASE_DIR, start_new_session=True
-        )
-        proc.wait(timeout=600)
-        return proc.returncode == 0
-    except subprocess.TimeoutExpired:
-        _kill_process_group(proc)
-        log("err", f"CVE hunt timed out for {domain}")
-        return False
+    success, _ = run_legacy_cve_hunt(
+        domain,
+        base_dir=BASE_DIR,
+        recon_dir=recon_dir if os.path.isdir(recon_dir) else None,
+        timeout=600,
+    )
+    return success
 
 
 def run_zero_day_fuzzer(domain, deep=False):
