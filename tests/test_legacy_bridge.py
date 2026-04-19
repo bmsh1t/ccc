@@ -2,10 +2,32 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import shlex
+import subprocess
+import sys
+
+import pytest
 
 import legacy_bridge
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+TOOLS_DIR = REPO_ROOT / "tools"
+
+
+def run_import_check(*modules: str, pythonpath: list[Path]) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(str(path) for path in pythonpath)
+    code = "; ".join([*(f"import {name}" for name in modules), "print('ok')"])
+    return subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def test_open_hunt_journal_returns_journal_jsonl_path(tmp_path):
@@ -18,6 +40,28 @@ def test_hunt_journal_stable_reexport_from_memory_package():
     from memory import HuntJournal
 
     assert HuntJournal is legacy_bridge.HuntJournal
+
+
+@pytest.mark.parametrize(
+    "module_name",
+    [
+        "tools.legacy_bridge",
+        "tools.resume",
+        "tools.remember",
+    ],
+)
+def test_package_imports_work_from_repo_root_without_tools_on_pythonpath(module_name):
+    result = run_import_check(module_name, pythonpath=[REPO_ROOT])
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"
+
+
+def test_top_level_imports_still_work_when_tools_directory_is_on_pythonpath():
+    result = run_import_check("legacy_bridge", "resume", "remember", pythonpath=[TOOLS_DIR, REPO_ROOT])
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"
 
 
 def test_run_legacy_cve_hunt_delegates_to_cve_hunter_and_passes_domain(monkeypatch, tmp_path):

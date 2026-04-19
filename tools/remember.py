@@ -19,7 +19,12 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from legacy_bridge import open_hunt_journal
+try:
+    # 兼容 `import tools.remember`。
+    from .legacy_bridge import open_hunt_journal
+except ImportError:
+    # 保持 legacy 顶层导入 `import remember` 可用。
+    from legacy_bridge import open_hunt_journal
 from memory.pattern_db import PatternDB
 from memory.schemas import make_journal_entry, make_pattern_entry
 from memory.target_profile import default_memory_dir, load_target_profile, make_target_profile, save_target_profile

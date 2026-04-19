@@ -7,7 +7,13 @@ import shlex
 from pathlib import Path
 
 from memory.hunt_journal import HuntJournal
-from runtime_exec import run_shell_command
+
+try:
+    # 兼容 `import tools.legacy_bridge`。
+    from .runtime_exec import run_shell_command
+except ImportError:
+    # 保持 legacy 顶层导入 `import legacy_bridge` 可用。
+    from runtime_exec import run_shell_command
 
 
 def open_hunt_journal(memory_dir: str | Path) -> HuntJournal:

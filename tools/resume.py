@@ -14,7 +14,12 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from legacy_bridge import open_hunt_journal
+try:
+    # 兼容 `import tools.resume`。
+    from .legacy_bridge import open_hunt_journal
+except ImportError:
+    # 保持 legacy 顶层导入 `import resume` 可用。
+    from legacy_bridge import open_hunt_journal
 from memory.pattern_db import PatternDB
 from memory.target_profile import default_memory_dir, load_target_profile
 
