@@ -4,7 +4,7 @@ description: Start hunting on a target — loads scope, reads disclosed reports,
 
 # /hunt
 
-Active vulnerability hunting on a target. Legacy CVE hunt / report-generation paths remain available as compatibility paths, but the primary workflows are `/intel` and `/report`.
+Active vulnerability hunting on a target. Legacy CVE/report entrypoints remain available as compatibility paths, but the primary workflows are `/intel` and `/report`.
 
 ## CTF Mode
 

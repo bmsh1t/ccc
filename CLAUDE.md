@@ -38,7 +38,7 @@ This repo is a Claude Code plugin for professional bug bounty hunting across Hac
 | `/intel` | `/intel target.com` — fetch CVE + disclosure intel |
 | `/token-scan` | `/token-scan <contract>` — meme coin/token rug pull scanner |
 
-> Legacy script paths remain available for compatibility, but `/intel` and `/report` are the primary workflows.
+> Legacy CVE/report entrypoints remain available as compatibility paths, but `/intel` and `/report` are the primary workflows.
 
 > `/resume` is a reserved Claude Code command — use `/pickup` to continue a previous hunt.
 
