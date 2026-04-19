@@ -43,3 +43,38 @@ def test_run_recon_passes_ip_target_to_subprocess(monkeypatch):
     assert captured["shell"] is True
     assert captured["cwd"] == hunt.BASE_DIR
     assert captured["timeout"] == 1800
+
+
+def test_hunt_target_uses_canonical_cidr_across_followup_paths(monkeypatch):
+    seen = {
+        "recon": [],
+        "scan": [],
+        "profile": [],
+        "summary": [],
+        "reports": [],
+    }
+
+    monkeypatch.setattr(hunt, "run_recon", lambda target, quick=False: seen["recon"].append(target) or True)
+    monkeypatch.setattr(hunt, "run_vuln_scan", lambda target, quick=False: seen["scan"].append(target) or True)
+    monkeypatch.setattr(
+        hunt,
+        "_update_target_profile",
+        lambda target, *, elapsed_minutes=0, recon_completed=False: seen["profile"].append(target),
+    )
+    monkeypatch.setattr(
+        hunt,
+        "_auto_log_session_summary",
+        lambda target, **kwargs: seen["summary"].append(target),
+    )
+    monkeypatch.setattr(hunt, "generate_reports", lambda target: seen["reports"].append(target) or 0)
+
+    result = hunt.hunt_target("1.2.3.4/24")
+
+    assert result["domain"] == "1.2.3.0/24"
+    assert seen == {
+        "recon": ["1.2.3.0/24"],
+        "scan": ["1.2.3.0/24"],
+        "profile": ["1.2.3.0/24"],
+        "summary": ["1.2.3.0/24"],
+        "reports": ["1.2.3.0/24"],
+    }

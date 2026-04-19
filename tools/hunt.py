@@ -1355,23 +1355,25 @@ def run_zero_day_fuzzer(domain, deep=False):
 
 
 def hunt_target(domain, quick=False, recon_only=False, scan_only=False, cve_hunt=False, zero_day=False, ctf_mode=False):
-    """Run the full hunt pipeline on a single target."""
+    """Run the full hunt pipeline on a single canonical target."""
+    target_info = classify_target(domain)
+    canonical_target = target_info["target"]
     started = time.monotonic()
-    result = {"domain": domain, "success": True, "recon": False, "scan": False, "reports": 0, "ctf_mode": ctf_mode}
+    result = {"domain": canonical_target, "success": True, "recon": False, "scan": False, "reports": 0, "ctf_mode": ctf_mode}
 
     if ctf_mode:
         log("warn", "CTF mode enabled — treating the provided target as local practice scope.")
 
     if not scan_only:
-        result["recon"] = run_recon(domain, quick=quick)
+        result["recon"] = run_recon(canonical_target, quick=quick)
         if not result["recon"]:
-            log("warn", f"Recon had issues for {domain}, continuing anyway...")
+            log("warn", f"Recon had issues for {canonical_target}, continuing anyway...")
 
     if recon_only:
         elapsed_minutes = (time.monotonic() - started) / 60.0
-        _update_target_profile(domain, elapsed_minutes=elapsed_minutes, recon_completed=result["recon"])
+        _update_target_profile(canonical_target, elapsed_minutes=elapsed_minutes, recon_completed=result["recon"])
         _auto_log_session_summary(
-            domain,
+            canonical_target,
             recon_completed=result["recon"],
             scan_completed=False,
             cve_hunt=False,
@@ -1379,23 +1381,23 @@ def hunt_target(domain, quick=False, recon_only=False, scan_only=False, cve_hunt
         )
         return result
 
-    result["scan"] = run_vuln_scan(domain, quick=quick)
+    result["scan"] = run_vuln_scan(canonical_target, quick=quick)
 
     # CVE hunting (only when explicitly requested)
     if cve_hunt:
-        run_cve_hunt(domain)
+        run_cve_hunt(canonical_target)
 
     # Zero-day fuzzing (disabled by default — high false positive rate)
     if zero_day:
         log("warn", "Zero-day fuzzer enabled — results require manual verification")
-        run_zero_day_fuzzer(domain, deep=not quick)
+        run_zero_day_fuzzer(canonical_target, deep=not quick)
 
-    result["reports"] = generate_reports(domain)
+    result["reports"] = generate_reports(canonical_target)
     elapsed_minutes = (time.monotonic() - started) / 60.0
-    recon_available = result["recon"] or os.path.isdir(os.path.join(RECON_DIR, domain))
-    _update_target_profile(domain, elapsed_minutes=elapsed_minutes, recon_completed=recon_available)
+    recon_available = result["recon"] or os.path.isdir(os.path.join(RECON_DIR, canonical_target))
+    _update_target_profile(canonical_target, elapsed_minutes=elapsed_minutes, recon_completed=recon_available)
     _auto_log_session_summary(
-        domain,
+        canonical_target,
         recon_completed=recon_available,
         scan_completed=result["scan"],
         cve_hunt=cve_hunt,
