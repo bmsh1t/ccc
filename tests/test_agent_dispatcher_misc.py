@@ -84,3 +84,11 @@ def test_bridge_backed_hunt_agent_imports_hunt_journal_via_memory_package(monkey
         assert agent.HuntJournal is sentinel
 
     importlib.reload(agent)
+
+
+def test_agent_system_mentions_intel_and_report_as_primary_workflows():
+    system = agent._build_agent_system(ctf_mode=False, autopilot_mode="normal")
+
+    assert "/intel" in system
+    assert "/report" in system
+    assert "compatibility" in system.lower()

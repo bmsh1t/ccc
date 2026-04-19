@@ -1818,14 +1818,14 @@ CORE RULES:
 5. If active testing starts returning 403/429/timeouts or progress stalls, use read_guard_status to inspect breaker/cooldown state before retrying hosts.
 6. If repository source-hunt artifacts already exist for this target, use read_repo_source_summary before re-running run_repo_source_hunt.
 7. Prioritize by impact: CMS exploits > RCE > SQLi > IDOR/auth bypass > secrets > info.
-8. If Drupal or WordPress is detected → run_cms_exploit immediately. If any stack is clearly identified, run_cve_hunt.
+8. If Drupal or WordPress is detected → run_cms_exploit immediately. If any stack is clearly identified, prefer /intel as the primary intel workflow; run_cve_hunt is the legacy compatibility path.
 9. If Java/Tomcat/JBoss/Spring is detected → run_rce_scan + run_post_param_discovery.
 10. If JS assets exist → run_js_analysis, then run_secret_hunt if secrets/tokens/config leaks are plausible.
 11. If API endpoints or numeric-object URLs exist → run_api_fuzz. If authenticated surfaces exist → run_cors_check.
 12. If parameterized URLs found → run_param_discovery and run_sqlmap_targeted. Use run_sqlmap_on_file for specific raw requests.
 13. If JWT tokens appear in recon data → run_jwt_audit.
 14. When standard scans have plateaued but attack surface remains, use run_zero_day_fuzzer.
-15. Generate reports with generate_reports before finish when findings or useful artifacts exist.
+15. Before finish, prefer /report as the primary reporting workflow when findings or useful artifacts exist; generate_reports is the compatibility path.
 16. Maintain your notes via update_working_memory after each significant discovery.
 17. Call finish when: all high-priority tools done, time running low, or no new attack surface.
 18. DO NOT repeat a tool that already completed in this session unless explicitly justified.
