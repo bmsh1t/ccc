@@ -5,36 +5,59 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+from typing import Any
+
+TERMINATION_GRACE_SECONDS = 3
 
 
-def _terminate_process_group(proc: subprocess.Popen[str]) -> None:
+def _to_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return str(value)
+
+
+def _append_message(stream: str, message: str) -> str:
+    if not stream:
+        return message
+    if stream.endswith("\n"):
+        return stream + message
+    return stream + "\n" + message
+
+
+def _communicate_for(proc: subprocess.Popen[str], timeout: int) -> tuple[str, str, bool]:
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+        return _to_text(stdout), _to_text(stderr), True
+    except subprocess.TimeoutExpired as exc:
+        return _to_text(exc.output), _to_text(exc.stderr), False
+    except Exception:
+        return "", "", True
+
+
+def _terminate_process_group(proc: subprocess.Popen[str]) -> tuple[str, str]:
     try:
         pgid = os.getpgid(proc.pid)
     except Exception:
-        return
+        return "", ""
 
     try:
         os.killpg(pgid, signal.SIGTERM)
     except Exception:
-        return
-
-    try:
-        proc.communicate(timeout=3)
-        return
-    except subprocess.TimeoutExpired:
         pass
-    except Exception:
-        return
+
+    stdout, stderr, finished = _communicate_for(proc, TERMINATION_GRACE_SECONDS)
+    if finished:
+        return stdout, stderr
 
     try:
         os.killpg(pgid, signal.SIGKILL)
     except Exception:
-        return
+        return stdout, stderr
 
-    try:
-        proc.communicate(timeout=3)
-    except Exception:
-        return
+    kill_stdout, kill_stderr, _finished = _communicate_for(proc, TERMINATION_GRACE_SECONDS)
+    return stdout + kill_stdout, stderr + kill_stderr
 
 
 def _spawn(cmd: str, *, cwd: str | None = None) -> subprocess.Popen[str]:
@@ -45,21 +68,36 @@ def _spawn(cmd: str, *, cwd: str | None = None) -> subprocess.Popen[str]:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        preexec_fn=os.setsid,
+        start_new_session=True,
     )
 
 
-def run_shell_command(cmd: str, *, cwd: str | None = None, timeout: int = 600) -> tuple[bool, str]:
+def _run_shell_command_split(cmd: str, *, cwd: str | None = None, timeout: int = 600) -> tuple[bool, str, str]:
     proc = _spawn(cmd, cwd=cwd)
     try:
         stdout, stderr = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        _terminate_process_group(proc)
-        return False, f"Command timed out after {timeout}s"
+        return proc.returncode == 0, _to_text(stdout), _to_text(stderr)
+    except subprocess.TimeoutExpired as exc:
+        stdout = _to_text(exc.output)
+        stderr = _to_text(exc.stderr)
+        cleanup_stdout, cleanup_stderr = _terminate_process_group(proc)
+        stdout += cleanup_stdout
+        stderr += cleanup_stderr
+        stderr = _append_message(stderr, f"Command timed out after {timeout}s")
+        return False, stdout, stderr
     except Exception as exc:
-        _terminate_process_group(proc)
-        return False, str(exc)
-    return proc.returncode == 0, (stdout or "") + (stderr or "")
+        stdout = _to_text(getattr(exc, "output", None))
+        stderr = _to_text(getattr(exc, "stderr", None))
+        cleanup_stdout, cleanup_stderr = _terminate_process_group(proc)
+        stdout += cleanup_stdout
+        stderr += cleanup_stderr
+        stderr = _append_message(stderr, str(exc))
+        return False, stdout, stderr
+
+
+def run_shell_command(cmd: str, *, cwd: str | None = None, timeout: int = 600) -> tuple[bool, str]:
+    success, stdout, stderr = _run_shell_command_split(cmd, cwd=cwd, timeout=timeout)
+    return success, stdout + stderr
 
 
 def run_shell_command_split(
@@ -68,13 +106,4 @@ def run_shell_command_split(
     cwd: str | None = None,
     timeout: int = 600,
 ) -> tuple[bool, str, str]:
-    proc = _spawn(cmd, cwd=cwd)
-    try:
-        stdout, stderr = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        _terminate_process_group(proc)
-        return False, "", f"Command timed out after {timeout}s"
-    except Exception as exc:
-        _terminate_process_group(proc)
-        return False, "", str(exc)
-    return proc.returncode == 0, stdout or "", stderr or ""
+    return _run_shell_command_split(cmd, cwd=cwd, timeout=timeout)
