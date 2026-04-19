@@ -23,6 +23,7 @@ import os
 import re
 import ipaddress
 import shlex
+import signal
 import ssl
 import subprocess
 import sys
@@ -100,16 +101,40 @@ def log(level, msg):
 
 def run_cmd(cmd, cwd=None, timeout=600):
     """Run a shell command and return (success, output)."""
+    from runtime_exec import run_shell_command
+
+    return run_shell_command(cmd, cwd=cwd, timeout=timeout)
+
+
+def _kill_process_group(proc):
+    """Best-effort termination for a spawned subprocess session."""
     try:
-        result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True,
-            cwd=cwd, timeout=timeout
-        )
-        return result.returncode == 0, result.stdout + result.stderr
+        pgid = os.getpgid(proc.pid)
+    except Exception:
+        return
+
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+    except Exception:
+        return
+
+    try:
+        proc.wait(timeout=3)
+        return
     except subprocess.TimeoutExpired:
-        return False, "Command timed out"
-    except Exception as e:
-        return False, str(e)
+        pass
+    except Exception:
+        return
+
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except Exception:
+        return
+
+    try:
+        proc.wait(timeout=3)
+    except Exception:
+        return
 
 
 def classify_target(target):
@@ -769,12 +794,12 @@ def run_recon(domain, quick=False):
     try:
         proc = subprocess.Popen(
             f'bash "{script}" "{normalized_target}" {quick_flag}',
-            shell=True, cwd=BASE_DIR
+            shell=True, cwd=BASE_DIR, start_new_session=True
         )
         proc.wait(timeout=1800)  # 30 min timeout
         return proc.returncode == 0
     except subprocess.TimeoutExpired:
-        proc.kill()
+        _kill_process_group(proc)
         log("err", f"Recon timed out for {normalized_target}")
         return False
 
@@ -793,12 +818,12 @@ def run_vuln_scan(domain, quick=False):
     try:
         proc = subprocess.Popen(
             f'bash "{script}" "{recon_dir}" {quick_flag}',
-            shell=True, cwd=BASE_DIR
+            shell=True, cwd=BASE_DIR, start_new_session=True
         )
         proc.wait(timeout=1800)
         return proc.returncode == 0
     except subprocess.TimeoutExpired:
-        proc.kill()
+        _kill_process_group(proc)
         log("err", f"Vulnerability scan timed out for {domain}")
         return False
 
@@ -1338,12 +1363,12 @@ def run_cve_hunt(domain):
     try:
         proc = subprocess.Popen(
             f'python3 "{script}" "{domain}" {recon_flag}',
-            shell=True, cwd=BASE_DIR
+            shell=True, cwd=BASE_DIR, start_new_session=True
         )
         proc.wait(timeout=600)
         return proc.returncode == 0
     except subprocess.TimeoutExpired:
-        proc.kill()
+        _kill_process_group(proc)
         log("err", f"CVE hunt timed out for {domain}")
         return False
 
@@ -1362,11 +1387,11 @@ def run_zero_day_fuzzer(domain, deep=False):
         cmd = f'python3 "{script}" "https://{domain}" {deep_flag}'
 
     try:
-        proc = subprocess.Popen(cmd, shell=True, cwd=BASE_DIR)
+        proc = subprocess.Popen(cmd, shell=True, cwd=BASE_DIR, start_new_session=True)
         proc.wait(timeout=900)
         return proc.returncode == 0
     except subprocess.TimeoutExpired:
-        proc.kill()
+        _kill_process_group(proc)
         log("err", f"Zero-day fuzzer timed out for {domain}")
         return False
 

@@ -30,10 +30,11 @@ def test_run_recon_passes_ip_target_to_subprocess(monkeypatch):
             captured["timeout"] = timeout
             return 0
 
-    def fake_popen(cmd, shell, cwd):
+    def fake_popen(cmd, shell, cwd, **kwargs):
         captured["cmd"] = cmd
         captured["shell"] = shell
         captured["cwd"] = cwd
+        captured["start_new_session"] = kwargs.get("start_new_session")
         return FakeProc()
 
     monkeypatch.setattr(hunt.subprocess, "Popen", fake_popen)
@@ -42,7 +43,26 @@ def test_run_recon_passes_ip_target_to_subprocess(monkeypatch):
     assert '"1.2.3.4"' in captured["cmd"]
     assert captured["shell"] is True
     assert captured["cwd"] == hunt.BASE_DIR
+    assert captured["start_new_session"] is True
     assert captured["timeout"] == 1800
+
+
+def test_run_recon_kills_process_group_when_wait_times_out(monkeypatch):
+    captured = []
+
+    class FakeProc:
+        pid = 5150
+        returncode = None
+
+        def wait(self, timeout=None):
+            raise hunt.subprocess.TimeoutExpired(cmd="recon", timeout=timeout)
+
+    monkeypatch.setattr(hunt.subprocess, "Popen", lambda *args, **kwargs: FakeProc())
+    monkeypatch.setattr(hunt.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(hunt.os, "killpg", lambda pid, sig: captured.append((pid, sig)))
+
+    assert hunt.run_recon("example.com") is False
+    assert captured
 
 
 def test_hunt_target_uses_canonical_cidr_across_followup_paths(monkeypatch):
@@ -100,10 +120,11 @@ def test_run_vuln_scan_uses_cidr_storage_dir(monkeypatch, tmp_path):
             captured["timeout"] = timeout
             return 0
 
-    def fake_popen(cmd, shell, cwd):
+    def fake_popen(cmd, shell, cwd, **kwargs):
         captured["cmd"] = cmd
         captured["shell"] = shell
         captured["cwd"] = cwd
+        captured["start_new_session"] = kwargs.get("start_new_session")
         return FakeProc()
 
     monkeypatch.setattr(hunt.subprocess, "Popen", fake_popen)
@@ -112,7 +133,31 @@ def test_run_vuln_scan_uses_cidr_storage_dir(monkeypatch, tmp_path):
     assert str(stored_recon_dir) in captured["cmd"]
     assert "1.2.3.0/24" not in captured["cmd"]
     assert captured["cwd"] == hunt.BASE_DIR
+    assert captured["start_new_session"] is True
     assert captured["timeout"] == 1800
+
+
+def test_run_vuln_scan_kills_process_group_when_wait_times_out(monkeypatch, tmp_path):
+    recon_root = tmp_path / "recon"
+    stored_recon_dir = recon_root / "example.com"
+    stored_recon_dir.mkdir(parents=True)
+    monkeypatch.setattr(hunt, "RECON_DIR", str(recon_root))
+
+    captured = []
+
+    class FakeProc:
+        pid = 6160
+        returncode = None
+
+        def wait(self, timeout=None):
+            raise hunt.subprocess.TimeoutExpired(cmd="scan", timeout=timeout)
+
+    monkeypatch.setattr(hunt.subprocess, "Popen", lambda *args, **kwargs: FakeProc())
+    monkeypatch.setattr(hunt.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(hunt.os, "killpg", lambda pid, sig: captured.append((pid, sig)))
+
+    assert hunt.run_vuln_scan("example.com") is False
+    assert captured
 
 
 def test_generate_reports_uses_cidr_storage_dirs(monkeypatch, tmp_path):
