@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 from pathlib import Path
 
 from memory.hunt_journal import HuntJournal
@@ -23,9 +24,11 @@ def run_legacy_cve_hunt(
 ) -> tuple[bool, str]:
     """委托 legacy CVE hunter 脚本执行。"""
     script = os.path.join(base_dir, "tools", "cve_hunter.py")
-    recon_flag = f' --recon-dir "{recon_dir}"' if recon_dir else ""
-    cmd = f'python3 "{script}" "{domain}"{recon_flag}'
-    return run_shell_command(cmd, cwd=base_dir, timeout=timeout)
+    cmd_parts = ["python3", shlex.quote(script), shlex.quote(domain)]
+    if recon_dir:
+        cmd_parts.extend(["--recon-dir", shlex.quote(recon_dir)])
+    return run_shell_command(" ".join(cmd_parts), cwd=base_dir, timeout=timeout)
+
 
 
 def generate_legacy_reports(
@@ -36,5 +39,5 @@ def generate_legacy_reports(
 ) -> tuple[bool, str]:
     """委托 legacy report generator 脚本执行。"""
     script = os.path.join(base_dir, "tools", "report_generator.py")
-    cmd = f'python3 "{script}" "{findings_dir}"'
-    return run_shell_command(cmd, cwd=base_dir, timeout=timeout)
+    cmd_parts = ["python3", shlex.quote(script), shlex.quote(findings_dir)]
+    return run_shell_command(" ".join(cmd_parts), cwd=base_dir, timeout=timeout)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shlex
 
 import legacy_bridge
 
@@ -13,8 +14,9 @@ def test_open_hunt_journal_returns_journal_jsonl_path(tmp_path):
     assert journal.path == Path(tmp_path) / "journal.jsonl"
 
 
-def test_run_legacy_cve_hunt_delegates_to_cve_hunter(monkeypatch, tmp_path):
+def test_run_legacy_cve_hunt_delegates_to_cve_hunter_and_passes_domain(monkeypatch, tmp_path):
     captured = {}
+    recon_dir = str(tmp_path / "recon data" / "example$(touch marker).com")
 
     def fake_run_shell_command(cmd, *, cwd=None, timeout=600):
         captured["cmd"] = cmd
@@ -27,21 +29,70 @@ def test_run_legacy_cve_hunt_delegates_to_cve_hunter(monkeypatch, tmp_path):
     success, output = legacy_bridge.run_legacy_cve_hunt(
         "example.com",
         base_dir=str(tmp_path),
-        recon_dir=str(tmp_path / "recon" / "example.com"),
+        recon_dir=recon_dir,
         timeout=77,
     )
 
+    parts = shlex.split(captured["cmd"])
+
     assert success is True
     assert output == "ok"
-    assert 'python3 "' in captured["cmd"]
-    assert "cve_hunter.py" in captured["cmd"]
-    assert '--recon-dir "' in captured["cmd"]
+    assert parts[0] == "python3"
+    assert parts[1].endswith("tools/cve_hunter.py")
+    assert parts[2] == "example.com"
+    assert parts[3] == "--recon-dir"
+    assert parts[4] == recon_dir
+    assert shlex.quote(recon_dir) in captured["cmd"]
     assert captured["cwd"] == str(tmp_path)
     assert captured["timeout"] == 77
 
 
-def test_generate_legacy_reports_delegates_to_report_generator(monkeypatch, tmp_path):
+def test_run_legacy_cve_hunt_omits_recon_dir_flag_when_missing(monkeypatch, tmp_path):
     captured = {}
+
+    def fake_run_shell_command(cmd, *, cwd=None, timeout=600):
+        captured["cmd"] = cmd
+        return True, "ok"
+
+    monkeypatch.setattr(legacy_bridge, "run_shell_command", fake_run_shell_command)
+
+    legacy_bridge.run_legacy_cve_hunt(
+        "example.com",
+        base_dir=str(tmp_path),
+        recon_dir=None,
+    )
+
+    parts = shlex.split(captured["cmd"])
+
+    assert "--recon-dir" not in parts
+    assert parts[2] == "example.com"
+
+
+def test_run_legacy_cve_hunt_shell_quotes_special_domain(monkeypatch, tmp_path):
+    captured = {}
+    dangerous_domain = "odd $(touch hacked).example"
+
+    def fake_run_shell_command(cmd, *, cwd=None, timeout=600):
+        captured["cmd"] = cmd
+        return True, "ok"
+
+    monkeypatch.setattr(legacy_bridge, "run_shell_command", fake_run_shell_command)
+
+    legacy_bridge.run_legacy_cve_hunt(
+        dangerous_domain,
+        base_dir=str(tmp_path),
+        recon_dir=None,
+    )
+
+    parts = shlex.split(captured["cmd"])
+
+    assert shlex.quote(dangerous_domain) in captured["cmd"]
+    assert parts[2] == dangerous_domain
+
+
+def test_generate_legacy_reports_delegates_to_report_generator_and_passes_findings_dir(monkeypatch, tmp_path):
+    captured = {}
+    findings_dir = str(tmp_path / "findings data" / "example$(touch report).com")
 
     def fake_run_shell_command(cmd, *, cwd=None, timeout=600):
         captured["cmd"] = cmd
@@ -52,13 +103,18 @@ def test_generate_legacy_reports_delegates_to_report_generator(monkeypatch, tmp_
     monkeypatch.setattr(legacy_bridge, "run_shell_command", fake_run_shell_command)
 
     success, output = legacy_bridge.generate_legacy_reports(
-        str(tmp_path / "findings" / "example.com"),
+        findings_dir,
         base_dir=str(tmp_path),
         timeout=45,
     )
 
+    parts = shlex.split(captured["cmd"])
+
     assert success is True
     assert output == "generated"
-    assert "report_generator.py" in captured["cmd"]
+    assert parts[0] == "python3"
+    assert parts[1].endswith("tools/report_generator.py")
+    assert parts[2] == findings_dir
+    assert shlex.quote(findings_dir) in captured["cmd"]
     assert captured["cwd"] == str(tmp_path)
     assert captured["timeout"] == 45
