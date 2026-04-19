@@ -13,20 +13,18 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 from datetime import datetime
+
+from runtime_exec import run_shell_command
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FINDINGS_DIR = os.path.join(BASE_DIR, "findings")
 
 
 def run_cmd(cmd, timeout=30):
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
-        return result.returncode == 0, result.stdout.strip()
-    except Exception as e:
-        return False, str(e)
+    success, output = run_shell_command(cmd, timeout=timeout)
+    return success, output.strip()
 
 
 def detect_technologies(domain, recon_dir=None):

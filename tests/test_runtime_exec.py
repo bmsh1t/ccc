@@ -7,7 +7,9 @@ import signal
 import subprocess
 import sys
 
+import cve_hunter
 import runtime_exec
+import zero_day_fuzzer
 
 
 def _timeout_test_command() -> str:
@@ -236,3 +238,42 @@ def test_trim_replayed_prefix_only_strips_confirmed_duplicate_prefix():
     assert runtime_exec._trim_replayed_prefix("hello\n", "hello\nworld\n") == "world\n"
     assert runtime_exec._trim_replayed_prefix("abc", "bcd") == "bcd"
     assert runtime_exec._trim_replayed_prefix("same", "same") == ""
+
+
+def test_cve_hunter_run_cmd_delegates_to_shared_helper(monkeypatch):
+    captured = {}
+
+    def fake_run_shell_command(cmd, *, cwd=None, timeout=600):
+        captured["cmd"] = cmd
+        captured["cwd"] = cwd
+        captured["timeout"] = timeout
+        return True, "shared output\n"
+
+    monkeypatch.setattr(cve_hunter, "run_shell_command", fake_run_shell_command, raising=False)
+
+    success, output = cve_hunter.run_cmd("echo ok", timeout=12)
+
+    assert (success, output) == (True, "shared output")
+    assert captured == {"cmd": "echo ok", "cwd": None, "timeout": 12}
+
+
+def test_zero_day_fuzzer_run_cmd_delegates_to_split_shared_helper(monkeypatch):
+    captured = {}
+
+    def fake_run_shell_command_split(cmd, *, cwd=None, timeout=600):
+        captured["cmd"] = cmd
+        captured["cwd"] = cwd
+        captured["timeout"] = timeout
+        return False, "out", "err"
+
+    monkeypatch.setattr(
+        zero_day_fuzzer,
+        "run_shell_command_split",
+        fake_run_shell_command_split,
+        raising=False,
+    )
+
+    success, stdout, stderr = zero_day_fuzzer.run_cmd("echo nope", timeout=9)
+
+    assert (success, stdout, stderr) == (False, "out", "err")
+    assert captured == {"cmd": "echo nope", "cwd": None, "timeout": 9}

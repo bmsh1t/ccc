@@ -22,25 +22,20 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 import time
 import hashlib
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
+from runtime_exec import run_shell_command_split
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FINDINGS_DIR = os.path.join(BASE_DIR, "findings")
 
 
 def run_cmd(cmd, timeout=15):
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
-        return result.returncode == 0, result.stdout, result.stderr
-    except subprocess.TimeoutExpired:
-        return False, "", "timeout"
-    except Exception as e:
-        return False, "", str(e)
+    return run_shell_command_split(cmd, timeout=timeout)
 
 
 def curl_request(url, method="GET", headers=None, data=None, timeout=10):
